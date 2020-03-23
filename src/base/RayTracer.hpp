@@ -1,0 +1,65 @@
+#pragma once
+
+
+#include "RTTriangle.hpp"
+#include "RaycastResult.hpp"
+#include "rtlib.hpp"
+#include "Bvh.hpp"
+#include "BvhNode.hpp"
+
+#include "base/String.hpp"
+
+#include <vector>
+#include <atomic>
+#include <stack>
+
+namespace FW
+{
+
+
+// Given a vector n, forms an orthogonal matrix with n as the last column, i.e.,
+// a coordinate system aligned such that n is its local z axis.
+// You'll have to fill in the implementation for this.
+Mat3f formBasis(const Vec3f& n);
+
+void writeNodes(std::ostream & stream, BvhNode & node);
+void loadNodes(std::istream & stream, BvhNode & node);
+
+Vec2f getTexelCoords(Vec2f uv, const Vec2i size);
+
+
+// Main class for tracing rays using BVHs.
+class RayTracer {
+public:
+                        RayTracer				(void);
+                        ~RayTracer				(void);
+
+						void					constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode);
+
+    void				saveHierarchy			(const char* filename, const std::vector<RTTriangle>& triangles);
+    void				loadHierarchy			(const char* filename, std::vector<RTTriangle>& triangles);
+
+    RaycastResult		raycast					(const Vec3f& orig, const Vec3f& dir) const;
+
+	//void intersect(const BvhNode & node, const Vec3f & orig, const Vec3f & invDir, const Vec3f & dir, RaycastResult & castresult, float & torig, float &found) const;
+
+    // This function computes an MD5 checksum of the input scene data,
+    // WITH the assumption that all vertices are allocated in one big chunk.
+    static FW::String	computeMD5				(const std::vector<Vec3f>& vertices);
+
+    std::vector<RTTriangle>* m_triangles;
+	Bvh bvh;
+	//BvhNode myNode;
+	std::vector<int> indices;
+
+	void resetRayCounter() { m_rayCount = 0; }
+	int getRayCount() { return m_rayCount; }
+
+private:
+	mutable std::atomic<int> m_rayCount;
+	mutable int kierrosluku = 0;
+	mutable float found;
+};
+
+
+} // namespace FW

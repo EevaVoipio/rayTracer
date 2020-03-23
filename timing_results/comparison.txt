@@ -1,0 +1,11 @@
+set_name scene_name state_name build_time(ms) trace_time(ms) ray_count
+submission conference conference_chairs 2076 2344 786432
+submission conference conference_overview 2073 1536 786432
+submission indirect-test_mat indirect_test 200 1770 786432
+submission sponza sponza_overview 485 1919 786432
+submission sponza sponza_window 488 2036 786432
+reference conference conference_chairs 2092 2349 786432
+reference conference conference_overview 2087 382 786432
+reference indirect-test_mat indirect_test 345 1430 786432
+reference sponza sponza_overview 496 1764 786432
+reference sponza sponza_window 487 2075 786432

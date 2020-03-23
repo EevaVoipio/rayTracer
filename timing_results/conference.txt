@@ -1,0 +1,3 @@
+set_name scene_name state_name build_time(ms) trace_time(ms) ray_count
+submission conference conference_overview 2118 372 786432
+reference conference conference_overview 2074 765 786432
