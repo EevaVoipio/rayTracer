@@ -19,14 +19,14 @@ namespace FW
 	}
 
 	void FW::Bvh::build(std::vector<int>& indices, BvhNode& node, std::vector<RTTriangle>& triangles) {
-		//buildSAH(node, indices, triangles);
-		/*node.box = getBox(indices, triangles, node.startPrim, node.endPrim);
+		node.box = getBox(indices, triangles, node.startPrim, node.endPrim);
 		if (node.endPrim - node.startPrim >= 10) {
 			int splitDimension = getMaxDimension(node.box.max - node.box.min);
 			node.axis = splitDimension;
 			FW::F32 splitCoord = node.box.min[splitDimension] + 0.5f * (node.box.max[splitDimension] - node.box.min[splitDimension]);
 			int mid = node.startPrim;
 			for (auto i = node.startPrim; i <= node.endPrim; i++) {
+
 				if (triangles[indices[i]].centroid()[splitDimension] < splitCoord) {
 					std::swap(indices[i], indices[mid]);
 					mid++;
@@ -41,7 +41,7 @@ namespace FW
 			build(indices, *node.rightChild, triangles);
 		} else {
 			node.leaf = true;
-		}*/
+		}
 	}
 
 	void FW::Bvh::buildSAH(BvhNode & node, std::vector<int>& indices, std::vector<RTTriangle>& triangles)
@@ -57,7 +57,7 @@ namespace FW
 		std::vector<splitInfo> buckets(numBuckets);
 		std::vector<splitInfo> backward(numBuckets);
 
-		if (triangleCount >=10) {
+		if (triangleCount >=16) {
 
 			AABB centroidBox = AABB(triangles[indices[node.startPrim]].centroid(), triangles[indices[node.startPrim]].centroid());
 			AABB leftBox, rightBox;
@@ -71,6 +71,9 @@ namespace FW
 				//Initialize buckets
 				for (int i = 0; i < 12; i++) {
 					buckets[i] = std::make_pair(0, AABB(FLT_MAX, FLT_MIN));
+				}
+				if (centroidBox.max[j] - centroidBox.min[j] == 0) {
+					continue;
 				}
 				const float bbLenInv = 1.0f / (centroidBox.max[j] - centroidBox.min[j]);
 
@@ -120,8 +123,12 @@ namespace FW
 				}
 
 			}
+			if (node.endPrim == 107 && buckets[0].first == 0) {
+				return;
+			}
 
 			if (bestBucket != -1) {
+				node.axis = splitDimension;
 				const float bbLenInv = 1.0f / (centroidBox.max[splitDimension] - centroidBox.min[splitDimension]);
 				int off = node.startPrim;
 				for (int i = node.startPrim; i <= node.endPrim; ++i) {
@@ -133,10 +140,7 @@ namespace FW
 					}
 				}
 
-
-
 					node.leftChild = std::unique_ptr<BvhNode>(new BvhNode(node.startPrim, split));
-					//buildSAH(nodes_[nodes_.size() - 1], triangles, (axis + 1) % 3, nodeCount + 1);
 					buildSAH(*node.leftChild, indices, triangles);
 
 
@@ -149,7 +153,6 @@ namespace FW
 
 		}
 		else {
-			//std::cout << nodes << "   Vasen     " << node.startPrim << "      " << node.endPrim << std::endl;
 			node.leaf = true;
 		}
 	}
@@ -182,7 +185,7 @@ namespace FW
 	}
 	bool Bvh::intersectBox(const BvhNode & node, const Vec3f & orig, const Vec3f & dir, float &tBox) const {
 
-		/*float tmin = -INFINITY, tmax = INFINITY;
+		float tmin = -INFINITY, tmax = INFINITY;
 		//Vec3f invDir = (Vec3f(1.0f, 1.0f, 1.0f) / (dir));
 
 		for (int i = 0; i < 3; i++) {
@@ -199,13 +202,13 @@ namespace FW
 			return true;
 		}
 
-		return false;//tmax >= max(tmin, 0.0f);*/
-		Vec3f t1 = (node.box.min - orig) * dir;
+		return false;//tmax >= max(tmin, 0.0f);
+		/*Vec3f t1 = (node.box.min - orig) * dir;
 		Vec3f t2 = (node.box.max - orig) * dir;
 		Vec3f tmin = min(t1, t2);
 		Vec3f tmax = max(t1, t2);
 		tBox = min(tBox, tmin.max());
-		return tmin.max() <= tmax.min();
+		return tmin.max() <= tmax.min();*/
 		//float ttmin = max()
 
 	};

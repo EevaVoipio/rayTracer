@@ -111,7 +111,6 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 			writeIndex(outfile, indices[i]);
 		}
 		writeNodes(outfile, bvh.root);
-		//writeNode(outfile, bvh.root);
 		// YOUR CODE HERE (R2)
 	}
 
@@ -149,13 +148,13 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 
 
 	void RayTracer::constructHierarchy(std::vector<RTTriangle>& triangles, SplitMode splitMode) {
-		//std::vector<int> indices(triangles.size());
 		for (auto i = 0; i < triangles.size(); i++) {
 			indices.push_back(i);
 		}
 		// YOUR CODE HERE (R1
 		bvh = Bvh();
 		bvh.root = BvhNode(0, triangles.size() - 1);
+		//bvh.build(indices, bvh.root, triangles);
 		bvh.buildSAH(bvh.root, indices, triangles);
 		m_triangles = &triangles;
 	}
@@ -166,46 +165,49 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		RaycastResult castresult;
 
 		float tBox;
-		std::stack<BvhNode*> nodes;
+		std::vector<BvhNode*> nodes;
 		Vec3f invDir = (Vec3f(1.0f, 1.0f, 1.0f) / (dir));
+		Vec3f negDir = Vec3f(invDir.x < 0, invDir.y < 0, invDir.z < 0);
 		bool hitFound = false;
 		float tFound = INFINITY;
 		float tmin = 1.0f, umin = 0.0f, vmin = 0.0f;
 		int imin = -1;
 		bool nearestHitFound = false;
 
+		//std::vector<BvhNode> nodes;
+
 		bool hitsBox = bvh.intersectBox(bvh.root, orig, invDir, tBox);
 		if (hitsBox) {
-			nodes.push(&bvh.root);
+			nodes.push_back(&bvh.root);
 		}
 		while (!nodes.empty()) {
-			BvhNode * current = nodes.top();
-			nodes.pop();
+			BvhNode * current = nodes.back();
+			nodes.pop_back();
+
+			/*if (current->leftChild != nullptr && current->rightChild != nullptr) {
+				hitsBox = bvh.intersectBox(*current, orig, invDir, tBox);
+				if (hitsBox && tBox < tFound) {
+					if (!negDir[current->axis]) {
+						nodes.push_back(current->leftChild.get());
+						nodes.push_back(current->rightChild.get());
+					}
+					else {
+						nodes.push_back(current->rightChild.get());
+						nodes.push_back(current->leftChild.get());
+					}
+				}
+			}*/
+			
 			if (current->leftChild != nullptr && current->rightChild != nullptr) {
 						hitsBox = bvh.intersectBox(*current->leftChild, orig, invDir, tBox);
 						if (hitsBox && tBox < tFound) {
-							float leftHit = tBox;
+								nodes.push_back(current->leftChild.get());
+						}
 							hitsBox = bvh.intersectBox(*current->rightChild, orig, invDir, tBox);
 							if (hitsBox && tBox < tFound) {
-								if (leftHit < tBox) {
-									nodes.push(current->rightChild.get());
-									nodes.push(current->leftChild.get());
-								}
-								else {
-									nodes.push(current->leftChild.get());
-									nodes.push(current->rightChild.get());
-								}
+								nodes.push_back(current->rightChild.get());
 							}
-							else {
-								nodes.push(current->leftChild.get());
-							}
-						}
-						else {
-							hitsBox = bvh.intersectBox(*current->rightChild, orig, invDir, tBox);
-							if (hitsBox && tBox < tFound) {
-								nodes.push(current->rightChild.get());
-							}
-						}
+						//}
 					}
 			else {
 					for (size_t i = current->startPrim; i <= current->endPrim; i++) {
