@@ -76,13 +76,15 @@ timingResult Renderer::rayTracePicture( RayTracer* rt, Image* image, const Camer
 
         for ( int i = 0; i < width; ++i )
         {
-            // generate ray through pixel
+			for (int aa = 0; aa < m_aaNumRays; ++aa)
+			{
+				// generate ray through pixel
 				float x = (i + 0.5f) / image->getSize().x *  2.0f - 1.0f;
 				float y = (j + 0.5f) / image->getSize().y * -2.0f + 1.0f;
 				// point on front plane in homogeneous coordinates
-				Vec4f P0( x, y, 0.0f, 1.0f );
+				Vec4f P0(x, y, 0.0f, 1.0f);
 				// point on back plane in homogeneous coordinates
-				Vec4f P1( x, y, 1.0f, 1.0f );
+				Vec4f P1(x, y, 1.0f, 1.0f);
 
 				// apply inverse projection, divide by w to get object-space points
 				Vec4f Roh = (invP * P0);
@@ -98,27 +100,28 @@ timingResult Renderer::rayTracePicture( RayTracer* rt, Image* image, const Camer
 				Rd = Rd - Ro;
 
 				// trace!
-				RaycastResult hit = rt->raycast( Ro, Rd );
+				RaycastResult hit = rt->raycast(Ro, Rd);
 
 				// if we hit something, fetch a color and insert into image
-				Vec4f color(0,0,0,1);
-				if ( hit.tri != nullptr )
+				Vec4f color(0, 0, 0, 1);
+				if (hit.tri != nullptr)
 				{
-					switch( mode )
+					switch (mode)
 					{
 					case ShadingMode_Headlight:
-						color = computeShadingHeadlight( hit, cameraCtrl);
+						color = computeShadingHeadlight(hit, cameraCtrl);
 						break;
 					case ShadingMode_AmbientOcclusion:
-						color = computeShadingAmbientOcclusion( rt, hit, cameraCtrl, rnd );
+						color = computeShadingAmbientOcclusion(rt, hit, cameraCtrl, rnd);
 						break;
 					case ShadingMode_Whitted:
-						color = computeShadingWhitted( rt, hit, cameraCtrl, rnd, 0 );
+						color = computeShadingWhitted(rt, hit, cameraCtrl, rnd, 0);
 						break;
 					}
 				}
 				// put pixel.
 				image->setVec4f(Vec2i(i, j), color);
+			}
         }
 
         // Print progress info

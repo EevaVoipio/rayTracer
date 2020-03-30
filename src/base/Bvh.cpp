@@ -123,9 +123,6 @@ namespace FW
 				}
 
 			}
-			if (node.endPrim == 107 && buckets[0].first == 0) {
-				return;
-			}
 
 			if (bestBucket != -1) {
 				node.axis = splitDimension;
@@ -183,9 +180,9 @@ namespace FW
 		}
 		return AABB(min, max);
 	}
-	bool Bvh::intersectBox(const BvhNode & node, const Vec3f & orig, const Vec3f & dir, float &tBox) const {
+	bool Bvh::intersectBox(const LinearBvhNode & node, const Vec3f & orig, const Vec3f & dir, float &tBox) const {
 
-		float tmin = -INFINITY, tmax = INFINITY;
+		float tmin = -INFINITY, tmax = tBox;
 		//Vec3f invDir = (Vec3f(1.0f, 1.0f, 1.0f) / (dir));
 
 		for (int i = 0; i < 3; i++) {
@@ -198,7 +195,7 @@ namespace FW
 		}
 
 		if (tmax >= max(tmin, 0.0f)) {
-			tBox = tmin;
+			//tBox = tmin;
 			return true;
 		}
 
@@ -211,7 +208,25 @@ namespace FW
 		return tmin.max() <= tmax.min();*/
 		//float ttmin = max()
 
-	};
+	}
+	int Bvh::flatten(const BvhNode & node, int &index)
+	{
+		LinearBvhNode linearNode = LinearBvhNode(node.startPrim, node.endPrim);
+		linearNode.axis = node.axis;
+		linearNode.box = node.box;
+		linearNode.leaf = node.leaf;
+		linearNode.index = index;
+		++index;
+		++nodeCount;
+		nodes.push_back(linearNode);
+		if (!linearNode.leaf) {
+			flatten(*node.leftChild, index);
+			int rightChildIndex = linearNode.rightChildIndex = flatten(*node.rightChild, index);
+			nodes[linearNode.index].rightChildIndex = rightChildIndex;
+		}
+		return linearNode.index;
+		
+	}
 
 	Bvh::Bvh() {
 

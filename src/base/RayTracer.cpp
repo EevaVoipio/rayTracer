@@ -94,7 +94,7 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 
 	void RayTracer::loadHierarchy(const char* filename, std::vector<RTTriangle>& triangles)
 	{
-		std::ifstream infile(filename, std::ios::binary);
+		/*std::ifstream infile(filename, std::ios::binary);
 		// YOUR CODE HERE (R2):
 		for (auto i = 0; i < triangles.size(); i++) {
 			int j;
@@ -102,16 +102,16 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 			indices.push_back(j);
 		}
 		loadNodes(infile, bvh.root);
-		m_triangles = &triangles;
+		m_triangles = &triangles;*/
 	}
 
 	void RayTracer::saveHierarchy(const char* filename, const std::vector<RTTriangle>& triangles) {
-		std::ofstream outfile(filename, std::ios::binary);
+		/*std::ofstream outfile(filename, std::ios::binary);
 		for (auto i = 0; i < indices.size(); i++) {
 			writeIndex(outfile, indices[i]);
 		}
 		writeNodes(outfile, bvh.root);
-		// YOUR CODE HERE (R2)
+		// YOUR CODE HERE (R2)*/
 	}
 
 	void writeNodes(std::ostream& stream, BvhNode& node) {
@@ -156,6 +156,13 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		bvh.root = BvhNode(0, triangles.size() - 1);
 		//bvh.build(indices, bvh.root, triangles);
 		bvh.buildSAH(bvh.root, indices, triangles);
+		int rootIndex = 0;
+		bvh.nodes.reserve(bvh.nodeCount);
+		bvh.flatten(bvh.root, rootIndex);
+		std::cout << bvh.nodeCount << std::endl;
+		/*for (int i = 0; i < bvh.nodeCount; ++i) {
+			std::cout << i << "   i    " << bvh.nodes[i].startPrim << "   start  " << bvh.nodes[i].endPrim << "   end   " << bvh.nodes[i].rightChildIndex << std::endl;
+		}*/
 		m_triangles = &triangles;
 	}
 
@@ -165,29 +172,32 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		RaycastResult castresult;
 
 		float tBox;
-		std::vector<BvhNode*> nodes;
+		//std::vector<int> nodes;
+		//std::vector<BvhNode*> nodes;
+		//nodes.reserve(20);
 		Vec3f invDir = (Vec3f(1.0f, 1.0f, 1.0f) / (dir));
 		Vec3f negDir = Vec3f(invDir.x < 0, invDir.y < 0, invDir.z < 0);
 		bool hitFound = false;
 		float tFound = INFINITY;
 		float tmin = 1.0f, umin = 0.0f, vmin = 0.0f;
 		int imin = -1;
-		bool nearestHitFound = false;
+		int nodesToVisit[64];
+		int nodeIndex = 0;
+		int toVisitOffset = 0;
 
-		//std::vector<BvhNode> nodes;
+		bool hitsBox = false; // bvh.intersectBox(bvh.root, orig, invDir, tBox);
+		//if (hitsBox) {
+			//nodes.push_back(&bvh.root);
+		//}
+		while (true) { //(!nodes.empty()) {
+			LinearBvhNode  current = bvh.nodes[nodeIndex];//nodes.back();
+			//nodes.pop_back();
+			hitsBox = bvh.intersectBox(current, orig, invDir, tFound);
 
-		bool hitsBox = bvh.intersectBox(bvh.root, orig, invDir, tBox);
-		if (hitsBox) {
-			nodes.push_back(&bvh.root);
-		}
-		while (!nodes.empty()) {
-			BvhNode * current = nodes.back();
-			nodes.pop_back();
-
-			/*if (current->leftChild != nullptr && current->rightChild != nullptr) {
+			/*if (!current->leaf) {
 				hitsBox = bvh.intersectBox(*current, orig, invDir, tBox);
 				if (hitsBox && tBox < tFound) {
-					if (!negDir[current->axis]) {
+					if (negDir[current->axis]) {
 						nodes.push_back(current->leftChild.get());
 						nodes.push_back(current->rightChild.get());
 					}
@@ -196,19 +206,8 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 						nodes.push_back(current->leftChild.get());
 					}
 				}
-			}*/
+			}
 			
-			if (current->leftChild != nullptr && current->rightChild != nullptr) {
-						hitsBox = bvh.intersectBox(*current->leftChild, orig, invDir, tBox);
-						if (hitsBox && tBox < tFound) {
-								nodes.push_back(current->leftChild.get());
-						}
-							hitsBox = bvh.intersectBox(*current->rightChild, orig, invDir, tBox);
-							if (hitsBox && tBox < tFound) {
-								nodes.push_back(current->rightChild.get());
-							}
-						//}
-					}
 			else {
 					for (size_t i = current->startPrim; i <= current->endPrim; i++) {
 						float t, u, v;
@@ -225,7 +224,57 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 							}
 						}
 					}
+				}*/
+			if (hitsBox ) {
+				if (!current.leaf) {
+					if (negDir[current.axis]) {
+						nodesToVisit[toVisitOffset++] = nodeIndex + 1;
+						//nodes.emplace_back(nodeIndex + 1);
+						nodeIndex = current.rightChildIndex;
+					}
+					else {
+						nodesToVisit[toVisitOffset++] = current.rightChildIndex;
+						//nodes.emplace_back(current.rightChildIndex);
+						++nodeIndex;
+					}
 				}
+				else {
+					for (size_t i = current.startPrim; i <= current.endPrim; i++) {
+						float t, u, v;
+						if ((*m_triangles)[indices[i]].intersect_woop(orig, dir, t, u, v)) {
+							if (t > 0.0f && t < tmin) {
+								imin = i;
+								tmin = t;
+								tFound = t;
+								hitFound = true;
+								umin = u;
+								vmin = v;
+							}
+						}
+					}
+					/*if (nodes.empty()) {
+						break;
+					}
+					nodeIndex = nodes.back();
+					nodes.pop_back();*/
+					if (toVisitOffset == 0) {
+						break;
+					}
+					nodeIndex = nodesToVisit[--toVisitOffset];
+				}
+
+			}
+			else {
+				/*if (nodes.empty()) {
+					break;
+				}
+				nodeIndex = nodes.back();
+				nodes.pop_back();*/
+				if (toVisitOffset == 0) {
+					break;
+				}
+				nodeIndex = nodesToVisit[--toVisitOffset];
+			}
 		}
 		if (imin != -1) {
 			castresult = RaycastResult(&(*m_triangles)[indices[imin]], tmin, umin, vmin, orig + tmin*dir, orig, dir);
