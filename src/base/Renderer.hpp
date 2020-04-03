@@ -3,6 +3,7 @@
 #include "3d/CameraControls.hpp"
 #include "3d/Mesh.hpp"
 #include "base/Random.hpp"
+#include <algorithm>
 
 #include <vector>
 
@@ -76,6 +77,11 @@ protected:
 
 	// EXTRA: implement the whitted integrator extra
 	Vec4f				computeShadingWhitted				(RayTracer* rt, const RaycastResult& hit, const CameraControls& cameraCtrl, Random& rnd, int num_bounces);
+
+	void getSamplePositions(std::vector<Vec2f> & positions, Random& rnd);
+	//Vec2f getSamplePosition(int n);
+
+	float getWeight(float x);
 
 	// EXTRA: gets all parameters from the material's textures.
 	void				getTextureParameters				(const RaycastResult& hit, Vec3f& diffuse, Vec3f& n, Vec3f& specular);

@@ -73,14 +73,25 @@ timingResult Renderer::rayTracePicture( RayTracer* rt, Image* image, const Camer
     {
         // Each thread must have its own random generator
         Random rnd;
-
+		std::vector<Vec2f> offsets;
+		offsets.reserve(m_aaNumRays);
+		if (m_aaNumRays > 1) {
+			getSamplePositions(offsets, rnd);
+		}
+		else {
+			offsets[0] = Vec2f(0.0f, 0.0f);
+		}
         for ( int i = 0; i < width; ++i )
         {
+			Vec4f aaColor(0, 0, 0, 0);
+			float aaWeight = 0.0f;
 			for (int aa = 0; aa < m_aaNumRays; ++aa)
 			{
 				// generate ray through pixel
-				float x = (i + 0.5f) / image->getSize().x *  2.0f - 1.0f;
-				float y = (j + 0.5f) / image->getSize().y * -2.0f + 1.0f;
+				Vec2f offset = offsets[aa];//getSamplePosition(aa);
+				float x = (i + 0.5f + offset.x) / image->getSize().x *  2.0f - 1.0f;
+				float y = (j + 0.5f + offset.y) / image->getSize().y * -2.0f + 1.0f;
+
 				// point on front plane in homogeneous coordinates
 				Vec4f P0(x, y, 0.0f, 1.0f);
 				// point on back plane in homogeneous coordinates
@@ -119,9 +130,16 @@ timingResult Renderer::rayTracePicture( RayTracer* rt, Image* image, const Camer
 						break;
 					}
 				}
+				float weight = 1; //Use simple box filter for now
+				//float weight = getWeight(x) * getWeight(y);
+				aaWeight += weight;
+				aaColor += weight * color;
 				// put pixel.
-				image->setVec4f(Vec2i(i, j), color);
+				//image->setVec4f(Vec2i(i, j), aaColor);
+				//image->setVec4f(Vec2i(i, j), color);
 			}
+			aaColor /= aaWeight;
+			image->setVec4f(Vec2i(i, j), aaColor);
         }
 
         // Print progress info
@@ -166,6 +184,10 @@ void Renderer::getTextureParameters(const RaycastResult& hit, Vec3f& diffuse, Ve
 		Vec2i texelCoords = getTexelCoords(uv, img.getSize());
 		//Vec2i texelCoords = (50, 10);
 		diffuse = img.getVec4f(texelCoords).getXYZ();
+		/*alpha = img.getVec4f(texelCoords).w;
+		if (alpha != 1) {
+			std::cout << alpha << std::endl;
+		}*/
 		// YOUR CODE HERE (R3): uncomment the line below once you have implemented getTexelCoords.
 	}
 	Texture& normalTex = mat->textures[MeshBase::TextureType_Normal];
@@ -176,7 +198,15 @@ void Renderer::getTextureParameters(const RaycastResult& hit, Vec3f& diffuse, Ve
 		//first, get texel coordinates as above, for the rest, see handout
 	}
 
+	Texture& specularTex = mat->textures[MeshBase::TextureType_Specular];
+	if (specularTex.exists()) {
+		const Image& img = *specularTex.getImage();
+		Vec2i texelCoords = getTexelCoords(uv, img.getSize());
+		specular = img.getVec4f(texelCoords).getXYZ();
+	}
 	// EXTRA: read a value from the specular texture into specular_mult.
+
+
 
 }
 
@@ -187,7 +217,7 @@ Vec4f Renderer::computeShadingHeadlight(const RaycastResult& hit, const CameraCo
 	Vec3f diffuse = mat->diffuse.getXYZ();
 	Vec3f n(hit.tri->normal());
 	Vec3f specular = mat->specular; // specular color. Not used in requirements, but you can use this in extras if you wish.
-
+	//float alpha = mat->diffuse.w;
 	if (m_useTextures)
 		getTextureParameters(hit, diffuse, n, specular);
 
@@ -196,8 +226,16 @@ Vec4f Renderer::computeShadingHeadlight(const RaycastResult& hit, const CameraCo
 
     // assign gray value (d,d,d)
 	Vec3f shade = d;
-    
-    return Vec4f( shade*diffuse, 1.0f );
+
+	Vec3f reflection = ((hit.point - cameraCtrl.getPosition()) - 2 * d * n).normalized();
+	//float sd = min(1.0f, max(0.0f, (dot(hit.dir, reflection))));
+	float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
+	float s = pow(sd, mat->glossiness);
+	/*if (alpha < 0.5f) {
+		return Vec4f(0.0f, 0.0f, 0.0f, 0.0f);
+	}*/
+    return Vec4f(shade*diffuse + (s*specular), 1.0f );
+	//return Vec4f( shade*diffuse, 1.0f );
 }
 
 
@@ -232,6 +270,41 @@ Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, c
 {
 	//EXTRA: implement a whitted integrator
 	return Vec4f(.0f);
+}
+
+void Renderer::getSamplePositions(std::vector<Vec2f> & positions, Random& rnd) {
+	float subDim = 1.0f / m_aaNumRays;
+	for (int i = 0; i < m_aaNumRays; ++i) {
+		float offset = rnd.getF32(i*subDim, (i + 1)*subDim);
+		positions[i] = Vec2f(offset, offset);
+	}
+	std::random_shuffle(positions.begin(), positions.end());
+}
+
+/*Vec2f Renderer::getSamplePosition(int n) {
+	// YOUR CODE HERE (R9)
+	// Return a sample through the center of the Nth subpixel.
+	// The starter code only supports one sample per pixel.
+	int m_dim = sqrtf(m_aaNumRays);
+	float sub_dim = 1.0f / m_dim;
+	float x = (n % m_dim) * sub_dim + 0.5*sub_dim;
+	float y = (n / m_dim) * sub_dim + 0.5*sub_dim;
+	return Vec2f(x, y);
+}*/
+
+float Renderer::getWeight(float x) {
+	float c = 0.325;
+	float b = 0.35;
+	//x = std::abs(2 * x);
+	if (x < 1) {
+		return ((12-9*b - 6*c) * x*x*x + (-18 + 12*b + 6*c)* x*x + (6 - 2*b)) * (1.0f / 6.0f);
+	}
+	else if (x < 2) {
+		return ((-b - 6*c) * x*x*x + (6*b + 30*c) * x*x + (-12*b - 48*c) * x + (8*b + 24*c)) * (1.0f / 6.0f);
+	}
+	else {
+		return 0.0f;
+	}
 }
 
 } // namespace FW

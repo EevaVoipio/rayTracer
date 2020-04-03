@@ -19,16 +19,17 @@
 			startPrim = start;
 			endPrim = end;
 			leaf = false;
+			axis = 0;
 		};
 
 		BvhNode() {};
 
 		friend std::ostream & operator<<(std::ostream& stream, const BvhNode& node) {
-			return stream << node.startPrim << " " << node.endPrim << " " << node.box.min.x << " " << node.box.min.y << " " << node.box.min.z << " " << node.box.max.x << " " << node.box.max.y << " " << node.box.max.z << " " << node.leaf <<" ";
+			return stream << node.startPrim << " " << node.endPrim << " " << node.box.min.x << " " << node.box.min.y << " " << node.box.min.z << " " << node.box.max.x << " " << node.box.max.y << " " << node.box.max.z << " " << node.leaf << " " << node.axis << " ";
 		};
 
 		friend std::istream & operator>>(std::istream& stream, BvhNode& node) {
-			stream >> node.startPrim >> node.endPrim >> node.box.min.x >> node.box.min.y >> node.box.min.z >> node.box.max.x >> node.box.max.y >> node.box.max.z >> node.leaf;
+			stream >> node.startPrim >> node.endPrim >> node.box.min.x >> node.box.min.y >> node.box.min.z >> node.box.max.x >> node.box.max.y >> node.box.max.z >> node.leaf >> node.axis;
 			return stream;
 		};
 	};

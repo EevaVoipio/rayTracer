@@ -38,9 +38,6 @@ namespace FW
 		x = modf((x + 1), &intx);
 		y = modf((y + 1), &inty);
 
-		/*int x = int(u * textureWidth) % (textureWidth - 1);
-int y = int(v * textureHeight) % (textureHeight - 1);*/
-
 		Vec2f coords = Vec2f(max(0.0f, x) * (size.x), max(0.0f, y) * (size.y));
 		return coords;
 	}
@@ -61,7 +58,7 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		Vec3f b = cross(t, n);
 		rotation.setCol(1, b);
 		// YOUR CODE HERE (R4):
-		return rotation;//Mat3f();
+		return rotation;
 	}
 
 
@@ -159,10 +156,6 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		int rootIndex = 0;
 		bvh.nodes.reserve(bvh.nodeCount);
 		bvh.flatten(bvh.root, rootIndex);
-		std::cout << bvh.nodeCount << std::endl;
-		/*for (int i = 0; i < bvh.nodeCount; ++i) {
-			std::cout << i << "   i    " << bvh.nodes[i].startPrim << "   start  " << bvh.nodes[i].endPrim << "   end   " << bvh.nodes[i].rightChildIndex << std::endl;
-		}*/
 		m_triangles = &triangles;
 	}
 
@@ -172,7 +165,6 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		RaycastResult castresult;
 
 		float tBox;
-		//std::vector<int> nodes;
 		//std::vector<BvhNode*> nodes;
 		//nodes.reserve(20);
 		Vec3f invDir = (Vec3f(1.0f, 1.0f, 1.0f) / (dir));
@@ -185,56 +177,20 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		int nodeIndex = 0;
 		int toVisitOffset = 0;
 
-		bool hitsBox = false; // bvh.intersectBox(bvh.root, orig, invDir, tBox);
-		//if (hitsBox) {
-			//nodes.push_back(&bvh.root);
-		//}
-		while (true) { //(!nodes.empty()) {
-			LinearBvhNode  current = bvh.nodes[nodeIndex];//nodes.back();
-			//nodes.pop_back();
+		bool hitsBox = false;
+
+		while (true) {
+			LinearBvhNode  current = bvh.nodes[nodeIndex];
 			hitsBox = bvh.intersectBox(current, orig, invDir, tFound);
 
-			/*if (!current->leaf) {
-				hitsBox = bvh.intersectBox(*current, orig, invDir, tBox);
-				if (hitsBox && tBox < tFound) {
-					if (negDir[current->axis]) {
-						nodes.push_back(current->leftChild.get());
-						nodes.push_back(current->rightChild.get());
-					}
-					else {
-						nodes.push_back(current->rightChild.get());
-						nodes.push_back(current->leftChild.get());
-					}
-				}
-			}
-			
-			else {
-					for (size_t i = current->startPrim; i <= current->endPrim; i++) {
-						float t, u, v;
-						//if ((*m_triangles)[i].intersect_woop(orig, dir, t, u, v)) {
-						if ((*m_triangles)[indices[i]].intersect_woop(orig, dir, t, u, v)) {
-							if (t > 0.0f && t < tmin) {
-								imin = i;
-								tmin = t;
-								tFound = t;
-								hitFound = true;
-								umin = u;
-								vmin = v;
-
-							}
-						}
-					}
-				}*/
 			if (hitsBox ) {
 				if (!current.leaf) {
 					if (negDir[current.axis]) {
 						nodesToVisit[toVisitOffset++] = nodeIndex + 1;
-						//nodes.emplace_back(nodeIndex + 1);
 						nodeIndex = current.rightChildIndex;
 					}
 					else {
 						nodesToVisit[toVisitOffset++] = current.rightChildIndex;
-						//nodes.emplace_back(current.rightChildIndex);
 						++nodeIndex;
 					}
 				}
@@ -243,20 +199,26 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 						float t, u, v;
 						if ((*m_triangles)[indices[i]].intersect_woop(orig, dir, t, u, v)) {
 							if (t > 0.0f && t < tmin) {
-								imin = i;
-								tmin = t;
-								tFound = t;
-								hitFound = true;
-								umin = u;
-								vmin = v;
+								auto triangle = (*m_triangles)[indices[i]];
+								float alpha = triangle.m_material->diffuse.w;
+								Texture& alphaTex = triangle.m_material->textures[MeshBase::TextureType_Alpha];
+								if (alphaTex.exists()) {
+									const Image& img = *alphaTex.getImage();
+									Vec2f uv = (1 - v - u) * triangle.m_vertices[0].t + u * triangle.m_vertices[1].t + v * triangle.m_vertices[2].t;
+									Vec2i texelCoords = getTexelCoords(uv, img.getSize());
+									alpha = img.getVec4f(texelCoords).y;
+								}
+								if (alpha >= 0.5f) {
+									imin = i;
+									tmin = t;
+									tFound = t;
+									hitFound = true;
+									umin = u;
+									vmin = v;
+								}
 							}
 						}
 					}
-					/*if (nodes.empty()) {
-						break;
-					}
-					nodeIndex = nodes.back();
-					nodes.pop_back();*/
 					if (toVisitOffset == 0) {
 						break;
 					}
@@ -265,11 +227,6 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 
 			}
 			else {
-				/*if (nodes.empty()) {
-					break;
-				}
-				nodeIndex = nodes.back();
-				nodes.pop_back();*/
 				if (toVisitOffset == 0) {
 					break;
 				}
@@ -278,7 +235,6 @@ int y = int(v * textureHeight) % (textureHeight - 1);*/
 		}
 		if (imin != -1) {
 			castresult = RaycastResult(&(*m_triangles)[indices[imin]], tmin, umin, vmin, orig + tmin*dir, orig, dir);
-			//castresult = RaycastResult(&(*m_triangles)[imin], tmin, umin, vmin, orig + tmin*dir, orig, dir);
 		}
 
 
