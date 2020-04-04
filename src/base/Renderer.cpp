@@ -238,8 +238,10 @@ Vec4f Renderer::computeShadingHeadlight(const RaycastResult& hit, const CameraCo
     // assign gray value (d,d,d)
 	Vec3f shade = d;
 
-	Vec3f reflection = ((hit.point - cameraCtrl.getPosition()) - 2 * d * n).normalized();
-	return Vec4f( shade*diffuse, 1.0f );
+	Vec3f reflection = (-(hit.point - cameraCtrl.getPosition()).normalized() - 2 * d * n).normalized();
+	float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
+	float s = pow(sd, mat->glossiness);
+	return Vec4f(shade*diffuse + 0.5f * (s*specular), 1.0f);
 }
 
 
@@ -270,6 +272,9 @@ Vec4f Renderer::computeShadingAmbientOcclusion(RayTracer* rt, const RaycastResul
 
 Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, const CameraControls& cameraCtrl, Random& rnd, int num_bounces)
 {
+	if (num_bounces < m_whittedBounces) {
+
+	}
 	//EXTRA: implement a whitted integrator
 	//return Vec4f(.0f);
 	// get diffuse color
@@ -281,16 +286,14 @@ Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, c
 	if (m_useTextures)
 		getTextureParameters(hit, diffuse, n, specular);
 
-	// dot with view ray direction <=> "headlight shading"
-	float d = fabs(dot(n, (hit.point - cameraCtrl.getPosition()).normalized()));
-
-	// assign gray value (d,d,d)
+	float d = fabs(dot(n, -(hit.point - cameraCtrl.getPosition()).normalized()));
 	Vec3f shade = d;
+	//m_pointLightPos
 
-	Vec3f reflection = ((hit.point - cameraCtrl.getPosition()) - 2 * d * n).normalized();
-	float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
-	float s = pow(sd, mat->glossiness);
-	return Vec4f(shade*diffuse + (s*specular), 1.0f);
+		Vec3f reflection = (-(hit.point - cameraCtrl.getPosition()).normalized() - 2 * d * n).normalized();
+		float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
+		float s = pow(sd, mat->glossiness);
+		return Vec4f(shade*diffuse + 0.5f * (s*specular), 1.0f);
 }
 
 void Renderer::getSamplePositions(std::vector<Vec2f> & positions, Random& rnd) {
