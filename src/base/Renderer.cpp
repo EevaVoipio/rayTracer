@@ -182,20 +182,31 @@ void Renderer::getTextureParameters(const RaycastResult& hit, Vec3f& diffuse, Ve
 		const Image& img = *diffuseTex.getImage();
 		//fetch diffuse color from texture
 		Vec2i texelCoords = getTexelCoords(uv, img.getSize());
-		//Vec2i texelCoords = (50, 10);
 		diffuse = img.getVec4f(texelCoords).getXYZ();
-		/*alpha = img.getVec4f(texelCoords).w;
-		if (alpha != 1) {
-			std::cout << alpha << std::endl;
-		}*/
 		// YOUR CODE HERE (R3): uncomment the line below once you have implemented getTexelCoords.
 	}
 	Texture& normalTex = mat->textures[MeshBase::TextureType_Normal];
 	if (normalTex.exists() && m_normalMapped) //check whether material uses a normal map
 	{
 		const Image& img = *normalTex.getImage();
+		Vec2i texelCoords = getTexelCoords(uv, img.getSize());
+
+		Vec3f normal = (2.0f * img.getVec4f(texelCoords).getXYZ() - 1.0f).normalized();
+		Vec3f deltaPos1 = hit.tri->m_vertices[1].p - hit.tri->m_vertices[0].p;
+		Vec3f deltaPos2 = hit.tri->m_vertices[2].p - hit.tri->m_vertices[0].p;
+		Vec2f deltaUV1 = hit.tri->m_vertices[1].t - hit.tri->m_vertices[0].t;
+		Vec2f deltaUV2 = hit.tri->m_vertices[2].t - hit.tri->m_vertices[0].t;
+		float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+		Vec3f tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y)*r;
+		Vec3f bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x)*r;
 		//EXTRA: do tangent space normal mapping
 		//first, get texel coordinates as above, for the rest, see handout
+		Mat3f tbn;
+		tbn.setCol(0, tangent.normalized());
+		tbn.setCol(1, bitangent.normalized());
+		tbn.setCol(2, n.normalized());
+
+		n = (tbn * normal);
 	}
 
 	Texture& specularTex = mat->textures[MeshBase::TextureType_Specular];
@@ -217,7 +228,7 @@ Vec4f Renderer::computeShadingHeadlight(const RaycastResult& hit, const CameraCo
 	Vec3f diffuse = mat->diffuse.getXYZ();
 	Vec3f n(hit.tri->normal());
 	Vec3f specular = mat->specular; // specular color. Not used in requirements, but you can use this in extras if you wish.
-	//float alpha = mat->diffuse.w;
+
 	if (m_useTextures)
 		getTextureParameters(hit, diffuse, n, specular);
 
@@ -228,14 +239,7 @@ Vec4f Renderer::computeShadingHeadlight(const RaycastResult& hit, const CameraCo
 	Vec3f shade = d;
 
 	Vec3f reflection = ((hit.point - cameraCtrl.getPosition()) - 2 * d * n).normalized();
-	//float sd = min(1.0f, max(0.0f, (dot(hit.dir, reflection))));
-	float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
-	float s = pow(sd, mat->glossiness);
-	/*if (alpha < 0.5f) {
-		return Vec4f(0.0f, 0.0f, 0.0f, 0.0f);
-	}*/
-    return Vec4f(shade*diffuse + (s*specular), 1.0f );
-	//return Vec4f( shade*diffuse, 1.0f );
+	return Vec4f( shade*diffuse, 1.0f );
 }
 
 
@@ -253,8 +257,6 @@ Vec4f Renderer::computeShadingAmbientOcclusion(RayTracer* rt, const RaycastResul
 		randomDir.z = sqrt(1 - pow(randomDir.x, 2) - pow(randomDir.y, 2));
 		Mat3f rotation = formBasis(n);
 		randomDir = (rotation * randomDir).normalized();
-		//-0.001f *cameraCtrl.getForward(); //-0.001f *cameraCtrl.getForward())
-	//	Vec3f myPoint = hit.point > Vec3f(0.0f). ? (hit.point + Vec3f(0.001f)) : (hit.point - Vec3f(0.001f));
 		RaycastResult ambientHit = rt->raycast((hit.point - 0.001f*(hit.point - cameraCtrl.getPosition())), m_aoRayLength*randomDir); //hit.point.x, hit.point.y, hit.point.z + 0.001f //hit.point - Vec3f(0.001f) // (hit.point - (0.001f) * hit.point)
 		if (ambientHit.t > 0.0f && ambientHit <= m_aoRayLength) {
 			numHits++;
@@ -269,7 +271,26 @@ Vec4f Renderer::computeShadingAmbientOcclusion(RayTracer* rt, const RaycastResul
 Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, const CameraControls& cameraCtrl, Random& rnd, int num_bounces)
 {
 	//EXTRA: implement a whitted integrator
-	return Vec4f(.0f);
+	//return Vec4f(.0f);
+	// get diffuse color
+	MeshBase::Material* mat = hit.tri->m_material;
+	Vec3f diffuse = mat->diffuse.getXYZ();
+	Vec3f n(hit.tri->normal());
+	Vec3f specular = mat->specular; // specular color. Not used in requirements, but you can use this in extras if you wish.
+									//float alpha = mat->diffuse.w;
+	if (m_useTextures)
+		getTextureParameters(hit, diffuse, n, specular);
+
+	// dot with view ray direction <=> "headlight shading"
+	float d = fabs(dot(n, (hit.point - cameraCtrl.getPosition()).normalized()));
+
+	// assign gray value (d,d,d)
+	Vec3f shade = d;
+
+	Vec3f reflection = ((hit.point - cameraCtrl.getPosition()) - 2 * d * n).normalized();
+	float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
+	float s = pow(sd, mat->glossiness);
+	return Vec4f(shade*diffuse + (s*specular), 1.0f);
 }
 
 void Renderer::getSamplePositions(std::vector<Vec2f> & positions, Random& rnd) {
