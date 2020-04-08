@@ -205,7 +205,7 @@ void Renderer::getTextureParameters(const RaycastResult& hit, Vec3f& diffuse, Ve
 		tbn.setCol(0, tangent.normalized());
 		tbn.setCol(1, bitangent.normalized());
 		tbn.setCol(2, n.normalized());
-		n = (tbn * normal);
+		n = (tbn * normal).normalized();
 	}
 
 	Texture& specularTex = mat->textures[MeshBase::TextureType_Specular];
@@ -242,6 +242,7 @@ Vec4f Renderer::computeShadingHeadlight(const RaycastResult& hit, const CameraCo
 	float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
 	float s = pow(sd, mat->glossiness);
 
+
 	return Vec4f(shade*diffuse + 0.5f * (s*specular), 1.0f);
 	//return Vec4f(shade*diffuse, 1.0f);
 }
@@ -277,7 +278,7 @@ Vec4f Renderer::computeShadingAmbientOcclusion(RayTracer* rt, const RaycastResul
 
 Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, const CameraControls& cameraCtrl, Random& rnd, int num_bounces)
 {
-	Vec4f color;
+	Vec4f color = Vec4f(0.0f, 0.0f, 0.0f, 1.0f);
 	MeshBase::Material* mat = hit.tri->m_material;
 	Vec3f diffuse = mat->diffuse.getXYZ();
 	Vec3f n(hit.tri->normal());
@@ -287,31 +288,32 @@ Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, c
 	if (m_useTextures)
 		getTextureParameters(hit, diffuse, n, specular);
 
-	float d = fabs(dot(n, (hit.point - cameraCtrl.getPosition()).normalized()));
-	// assign gray value (d,d,d)
-	Vec3f shade = d;
+	//float d = fabs(dot(n, (hit.point - cameraCtrl.getPosition()).normalized()));
+	//Vec3f dirToLight = (hit.point - m_pointLightPos).normalized();
+	Vec3f dirToLight = (m_pointLightPos - hit.point).normalized();
+	float dd = max(0.0f, (dot(n, dirToLight)));
+	
+	if (dd > 0) {
+		float distance = dot((m_pointLightPos - hit.point), (m_pointLightPos - hit.point));
+		Vec3f shade = dd;
 
-		//Specular
-		//Vec3f reflection = (-(hit.point - cameraCtrl.getPosition()).normalized() - 2 * d * n).normalized();
-		Vec3f reflection = (-(hit.point - m_pointLightPos).normalized() - 2 * d * n).normalized();
-		float sd = max(0.0f, (dot((hit.point - cameraCtrl.getPosition()).normalized(), reflection)));
+		color = Vec4f(shade*diffuse, 1.0f) / (1.6f * distance); //Linear attenuation, just making this number up to get similar result as refence
 
-		float s = pow(sd, mat->glossiness);
-		color = Vec4f(shade*diffuse + 0.5f * (s*specular), 1.0f);
+
 		//Shadow
 		Vec3f shadowRay = m_pointLightPos - hit.point;
-		RaycastResult shadowHit = rt->raycast(hit.point - 0.001f*(hit.point - cameraCtrl.getPosition()), shadowRay);
+		RaycastResult shadowHit = rt->raycast(hit.point + 0.01f*(shadowRay), shadowRay);
 		if (shadowHit.tri != nullptr) {
 			color = Vec4f(0.0f, 0.0f, 0.0f, 1.0f);
 		}
-
+	}
 		
-	if ((num_bounces)  < m_whittedBounces && specular != Vec3f(0.0f, 0.0f, 0.0f)) {
-		Vec3f reflectionDir = (-(hit.point - cameraCtrl.getPosition()).normalized() - 2 * d * n).normalized();
-		RaycastResult whittedHit = rt->raycast((hit.point - 0.001f*(hit.point - cameraCtrl.getPosition())), -10000.0f*reflectionDir);
+	if (num_bounces < m_whittedBounces && specular != Vec3f(0.0f, 0.0f, 0.0f) && m_useReflections) {
+		float d = (dot(n, (hit.dir.normalized())));
+		Vec3f reflectionDir = ((hit.dir).normalized() - 2 * d * n).normalized();
+		RaycastResult whittedHit = rt->raycast(hit.point + 0.001f*(n), 10000.0f*reflectionDir);
 		if (whittedHit.tri != nullptr) {
-			color += Vec4f(specular, 0.0f) * (mat->glossiness/100) * computeShadingWhitted(rt, whittedHit, cameraCtrl, rnd, ++num_bounces);
-
+			color += Vec4f(specular, 1.0f) * computeShadingWhitted(rt, whittedHit, cameraCtrl, rnd, ++num_bounces);
 		}
 	}
 
