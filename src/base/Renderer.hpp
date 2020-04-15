@@ -31,7 +31,8 @@ public:
 	{
 		ShadingMode_Headlight = 0,
 		ShadingMode_AmbientOcclusion,
-		ShadingMode_Whitted
+		ShadingMode_Whitted,
+		ShadingMode_AreaLights
 	};
 
 	// draw a picture of the mesh from the viewpoint specified by the matrix.
@@ -77,6 +78,8 @@ protected:
 
 	// EXTRA: implement the whitted integrator extra
 	Vec4f				computeShadingWhitted				(RayTracer* rt, const RaycastResult& hit, const CameraControls& cameraCtrl, Random& rnd, int num_bounces);
+
+	Vec4f Renderer::computeShadingAreaLights(RayTracer* rt, const RaycastResult& hit, const CameraControls& cameraCtrl, Random& rnd);
 
 	void getSamplePositions(std::vector<Vec2f> & positions, Random& rnd);
 	//Vec2f getSamplePosition(int n);

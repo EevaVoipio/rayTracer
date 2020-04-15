@@ -160,7 +160,7 @@ namespace FW
 	}
 
 
-	RaycastResult RayTracer::raycast(const Vec3f& orig, const Vec3f& dir) const {
+	RaycastResult RayTracer::raycast(const Vec3f& orig, const Vec3f& dir, bool shadowRay) const {
 		++m_rayCount;
 		RaycastResult castresult;
 
@@ -198,7 +198,17 @@ namespace FW
 					for (size_t i = current.startPrim; i <= current.endPrim; i++) {
 						float t, u, v;
 						if ((*m_triangles)[indices[i]].intersect_woop(orig, dir, t, u, v)) {
-							if (t > 0.0f && t < tmin) {
+							if (shadowRay) {
+								if (t > 0.01f && t < tmin) {
+									imin = i;
+									tmin = t;
+									tFound = t;
+									umin = u;
+									vmin = v;
+									break;
+								}
+							}
+							else if (t > 0.00f && t < tmin) {
 								auto triangle = (*m_triangles)[indices[i]];
 								float alpha = triangle.m_material->diffuse.w;
 								Texture& alphaTex = triangle.m_material->textures[MeshBase::TextureType_Alpha];
@@ -212,7 +222,6 @@ namespace FW
 									imin = i;
 									tmin = t;
 									tFound = t;
-									hitFound = true;
 									umin = u;
 									vmin = v;
 								}

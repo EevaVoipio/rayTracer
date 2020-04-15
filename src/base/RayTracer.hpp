@@ -39,7 +39,7 @@ public:
     void				saveHierarchy			(const char* filename, const std::vector<RTTriangle>& triangles);
     void				loadHierarchy			(const char* filename, std::vector<RTTriangle>& triangles);
 
-    RaycastResult		raycast					(const Vec3f& orig, const Vec3f& dir) const;
+    RaycastResult		raycast					(const Vec3f& orig, const Vec3f& dir, bool shadowRay) const;
 
 	//void intersect(const BvhNode & node, const Vec3f & orig, const Vec3f & invDir, const Vec3f & dir, RaycastResult & castresult, float & torig, float &found) const;
 

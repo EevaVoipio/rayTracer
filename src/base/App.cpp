@@ -107,6 +107,7 @@ App::App(std::vector<std::string>& cmd_args)
 	m_commonCtrl.addToggle((S32*)&m_shadingMode, Renderer::ShadingMode_Headlight,			FW_KEY_F1,    "Headlight shading (F1)");
 	m_commonCtrl.addToggle((S32*)&m_shadingMode, Renderer::ShadingMode_AmbientOcclusion, FW_KEY_F2, "Ambient occlusion shading (F2)");
 	m_commonCtrl.addToggle((S32*)&m_shadingMode, Renderer::ShadingMode_Whitted, FW_KEY_F3, "Extra: shading using whitted integrator (F3)");
+	m_commonCtrl.addToggle((S32*)&m_shadingMode, Renderer::ShadingMode_AreaLights, FW_KEY_F4, "Extra: shading using only area lights (F4)");
 
 	m_commonCtrl.addSeparator();
 

@@ -111,7 +111,7 @@ timingResult Renderer::rayTracePicture( RayTracer* rt, Image* image, const Camer
 				Rd = Rd - Ro;
 
 				// trace!
-				RaycastResult hit = rt->raycast(Ro, Rd);
+				RaycastResult hit = rt->raycast(Ro, Rd, false);
 
 				// if we hit something, fetch a color and insert into image
 				Vec4f color(0, 0, 0, 1);
@@ -127,6 +127,9 @@ timingResult Renderer::rayTracePicture( RayTracer* rt, Image* image, const Camer
 						break;
 					case ShadingMode_Whitted:
 						color = computeShadingWhitted(rt, hit, cameraCtrl, rnd, 0);
+						break;
+					case ShadingMode_AreaLights:
+						color = computeShadingAreaLights(rt, hit, cameraCtrl, rnd);
 						break;
 					}
 				}
@@ -242,7 +245,6 @@ Vec4f Renderer::computeShadingHeadlight(const RaycastResult& hit, const CameraCo
 	float sd = max(0.0f, (dot(hit.dir.normalized(), reflection)));
 	float s = pow(sd, mat->glossiness);
 
-
 	return Vec4f(shade*diffuse + 0.5f * (s*specular), 1.0f);
 	//return Vec4f(shade*diffuse, 1.0f);
 }
@@ -252,7 +254,6 @@ Vec4f Renderer::computeShadingAmbientOcclusion(RayTracer* rt, const RaycastResul
 {
 	Vec4f color;
 	float numHits = 16;
-	//float numHits = 0;// m_aoNumRays;
 	Vec3f n(hit.tri->normal());
 
 	for (auto i = 0; i < m_aoNumRays; i++) {
@@ -263,10 +264,7 @@ Vec4f Renderer::computeShadingAmbientOcclusion(RayTracer* rt, const RaycastResul
 		randomDir.z = sqrt(1 - pow(randomDir.x, 2) - pow(randomDir.y, 2));
 		Mat3f rotation = formBasis(n);
 		randomDir = (rotation * randomDir).normalized();
-		RaycastResult ambientHit = rt->raycast((hit.point - 0.001f*(hit.point - cameraCtrl.getPosition())), m_aoRayLength*randomDir);
-		/*if (ambientHit.t > 0.0f && ambientHit <= m_aoRayLength) {
-			++numHits;
-		}*/
+		RaycastResult ambientHit = rt->raycast(hit.point, m_aoRayLength*randomDir, true);
 		if (ambientHit.tri != nullptr) {
 			--numHits;
 		}
@@ -288,8 +286,6 @@ Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, c
 	if (m_useTextures)
 		getTextureParameters(hit, diffuse, n, specular);
 
-	//float d = fabs(dot(n, (hit.point - cameraCtrl.getPosition()).normalized()));
-	//Vec3f dirToLight = (hit.point - m_pointLightPos).normalized();
 	Vec3f dirToLight = (m_pointLightPos - hit.point).normalized();
 	float dd = max(0.0f, (dot(n, dirToLight)));
 	
@@ -302,7 +298,7 @@ Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, c
 
 		//Shadow
 		Vec3f shadowRay = m_pointLightPos - hit.point;
-		RaycastResult shadowHit = rt->raycast(hit.point + 0.01f*(shadowRay), shadowRay);
+		RaycastResult shadowHit = rt->raycast(hit.point, shadowRay, true);
 		if (shadowHit.tri != nullptr) {
 			color = Vec4f(0.0f, 0.0f, 0.0f, 1.0f);
 		}
@@ -311,12 +307,46 @@ Vec4f Renderer::computeShadingWhitted(RayTracer* rt, const RaycastResult& hit, c
 	if (num_bounces < m_whittedBounces && specular != Vec3f(0.0f, 0.0f, 0.0f) && m_useReflections) {
 		float d = (dot(n, (hit.dir.normalized())));
 		Vec3f reflectionDir = ((hit.dir).normalized() - 2 * d * n).normalized();
-		RaycastResult whittedHit = rt->raycast(hit.point + 0.001f*(n), 10000.0f*reflectionDir);
+		RaycastResult whittedHit = rt->raycast(hit.point + 0.001f*(n), 10000.0f*reflectionDir, false);
 		if (whittedHit.tri != nullptr) {
 			color += Vec4f(specular, 1.0f) * computeShadingWhitted(rt, whittedHit, cameraCtrl, rnd, ++num_bounces);
 		}
 	}
 
+	return color;
+}
+
+Vec4f Renderer::computeShadingAreaLights(RayTracer* rt, const RaycastResult& hit, const CameraControls& cameraCtrl, Random& rnd)
+{
+	Vec4f color = Vec4f(0.0f, 0.0f, 0.0f, 1.0f);
+	MeshBase::Material* mat = hit.tri->m_material;
+	Vec3f diffuse = mat->diffuse.getXYZ();
+	Vec3f n(hit.tri->normal());
+	n = ((1 - hit.v - hit.u) * hit.tri->m_vertices[0].n + hit.u * hit.tri->m_vertices[1].n + hit.v * hit.tri->m_vertices[2].n).normalized();
+	Vec3f specular = mat->specular; // specular color. Not used in requirements, but you can use this in extras if you wish.
+
+	if (m_useTextures)
+		getTextureParameters(hit, diffuse, n, specular);
+
+		if (mat->emission == Vec3f(0.0f, 0.0f, 0.0f)) {
+			for (int i = 0; i < m_lightTriangles.size(); ++i) {
+				auto triangle = m_lightTriangles[i];
+				float r1 = rnd.getF32(0, 1);
+				float r2 = rnd.getF32(0, 1);
+				Vec3f point = (1.0f - sqrt(r1)) * triangle->m_vertices[0].p + (sqrt(r1) * (1.0f - r2)) * triangle->m_vertices[1].p + (sqrt(r1) * r2) * triangle->m_vertices[2].p;
+
+				Vec3f shadowRay = point - hit.point;
+				RaycastResult shadowHit = rt->raycast(hit.point, shadowRay, true);
+				if (shadowHit.tri == nullptr ) {
+					float d = max(0.0f, dot(shadowRay.normalized(), n)) * max(0.0f, dot(-shadowRay.normalized(), triangle->normal().normalized())) / shadowRay.lenSqr() / (1.0f / triangle->area());
+					color += d * Vec4f(triangle->m_material->emission, 1.0f);
+				}
+			}
+			color /= m_lightTriangles.size();
+		}
+		else {
+			color = Vec4f(mat->emission, 1.0f);
+		}
 	return color;
 }
 
