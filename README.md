@@ -1,1 +1,1 @@
-# rayTracer
+Working on expanding an old assignment to learn more about ray tracing - the framework was provided as a ready base for adding BVH and other features without having to write all code from the scratch.
